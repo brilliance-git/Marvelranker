@@ -9,23 +9,42 @@
 <body>
   <header class="app-header">
     <h1>Marvel Movie Ranker</h1>
-    <p class="subtitle">Stack rank every MCU movie into a forced quartile split. Drag a movie onto a quartile, or tap it then tap a quartile. Tap a quartile name to rename it.</p>
+    <p class="subtitle">Swipe or tap the arrows to browse. Tap a quartile button to place the movie — they're always on screen, no scrolling needed.</p>
   </header>
 
-  <main class="layout">
-    <aside class="pool-panel" id="pool-panel">
-      <div class="pool-header">
-        <input id="search-input" type="text" placeholder="Search movies..." autocomplete="off">
+  <section class="ranker-panel" id="ranker-panel">
+    <div class="ranker-top">
+      <input id="search-input" type="text" placeholder="Search movies..." autocomplete="off">
+      <div class="ranker-status-row">
+        <span id="ranker-status" class="ranker-status"></span>
+        <button type="button" id="ranker-cancel" class="ranker-cancel-btn" hidden>Cancel</button>
       </div>
-      <div id="movie-pool" class="movie-pool"></div>
-      <div class="pool-actions">
-        <button id="reset-btn" class="secondary-btn">Reset board</button>
-        <button id="export-btn" class="secondary-btn">Export PNG</button>
-      </div>
-    </aside>
+    </div>
 
+    <div class="ranker-stage">
+      <button type="button" class="ranker-nav ranker-prev" id="ranker-prev" aria-label="Previous movie">‹</button>
+      <div class="ranker-card-viewport">
+        <div class="ranker-card" id="ranker-card">
+          <div class="ranker-card-phase" id="ranker-card-phase"></div>
+          <div class="ranker-card-title" id="ranker-card-title"></div>
+          <div class="ranker-card-year" id="ranker-card-year"></div>
+        </div>
+      </div>
+      <button type="button" class="ranker-nav ranker-next" id="ranker-next" aria-label="Next movie">›</button>
+    </div>
+
+    <div class="quartile-buttons" id="quartile-buttons"></div>
+  </section>
+
+  <main class="layout">
     <section class="board-wrap">
-      <div id="progress-summary" class="progress-summary"></div>
+      <div class="board-header-row">
+        <div id="progress-summary" class="progress-summary"></div>
+        <div class="board-actions">
+          <button id="reset-btn" class="secondary-btn">Reset board</button>
+          <button id="export-btn" class="secondary-btn">Export PNG</button>
+        </div>
+      </div>
       <div id="tier-board" class="tier-board"></div>
     </section>
   </main>
@@ -33,11 +52,6 @@
   <footer class="app-footer">
     <span id="status-text"></span>
   </footer>
-
-  <div id="selection-bar" class="selection-bar" hidden>
-    <span id="selection-text"></span>
-    <button id="selection-cancel" type="button">Cancel</button>
-  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="movies.js"></script>

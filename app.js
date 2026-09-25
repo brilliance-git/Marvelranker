@@ -3,18 +3,25 @@
 
   const STORAGE_KEY = "marvel-ranker-state-v3";
   const TAP_MOVE_THRESHOLD = 8; // px — pointer movement below this counts as a tap, not a drag
+  const SWIPE_THRESHOLD = 70; // px horizontal drag on the ranker card to trigger prev/next
+  const FLY_MS = 200;
 
   const tierBoard = document.getElementById("tier-board");
   const progressSummary = document.getElementById("progress-summary");
-  const moviePool = document.getElementById("movie-pool");
-  const poolPanel = document.getElementById("pool-panel");
   const searchInput = document.getElementById("search-input");
   const resetBtn = document.getElementById("reset-btn");
   const exportBtn = document.getElementById("export-btn");
   const statusText = document.getElementById("status-text");
-  const selectionBar = document.getElementById("selection-bar");
-  const selectionText = document.getElementById("selection-text");
-  const selectionCancelBtn = document.getElementById("selection-cancel");
+
+  const rankerStatus = document.getElementById("ranker-status");
+  const rankerCancelBtn = document.getElementById("ranker-cancel");
+  const rankerPrevBtn = document.getElementById("ranker-prev");
+  const rankerNextBtn = document.getElementById("ranker-next");
+  const rankerCard = document.getElementById("ranker-card");
+  const rankerCardPhase = document.getElementById("ranker-card-phase");
+  const rankerCardTitle = document.getElementById("ranker-card-title");
+  const rankerCardYear = document.getElementById("ranker-card-year");
+  const quartileButtonsEl = document.getElementById("quartile-buttons");
 
   const DEFAULT_TIERS = [
     { id: "top", label: "Top Quartile" },
@@ -58,12 +65,13 @@
     state.tierMovies[tierId] = state.tierMovies[tierId].filter((id) => movieById(id));
   });
 
-  // Tap-to-place selection. This is a fully separate interaction path from
-  // drag-and-drop: pick a movie with a tap, then tap a destination. It's the
-  // primary way to place movies on a touchscreen, where a page taller than
-  // the viewport makes a press-and-drag across the fold impractical (there's
-  // no auto-scroll). Mouse users can still drag as before.
+  // `selectedId` is set only by tapping an already-placed card on the board
+  // below — it means "reassign this movie" and the ranker card/buttons act
+  // on it instead of the browse queue. `rankerIndex` is the browse-queue
+  // position used the rest of the time (the normal, primary flow: swipe or
+  // tap arrows through unplaced movies, tap a quartile button to place).
   let selectedId = null;
+  let rankerIndex = 0;
 
   function movieById(id) {
     return MARVEL_MOVIES.find((m) => m.id === id);
@@ -78,6 +86,12 @@
 
   function placedIds() {
     return new Set(Object.values(state.tierMovies).flat());
+  }
+
+  function getUnplacedFiltered() {
+    const query = searchInput.value.trim().toLowerCase();
+    const placed = placedIds();
+    return MARVEL_MOVIES.filter((m) => !placed.has(m.id) && m.title.toLowerCase().includes(query));
   }
 
   function removeFromTiers(id) {
@@ -108,31 +122,28 @@
     return div.innerHTML;
   }
 
-  // ---------- Tap-to-place selection ----------
+  // ---------- Selection (tap a placed card to reassign it) ----------
   function toggleSelect(movieId) {
     selectedId = selectedId === movieId ? null : movieId;
-    renderPool();
     renderBoard();
-    updateSelectionBar();
+    renderRanker();
   }
 
   function clearSelection() {
     if (!selectedId) return;
     selectedId = null;
-    renderPool();
     renderBoard();
-    updateSelectionBar();
+    renderRanker();
   }
 
-  function updateSelectionBar() {
+  rankerCancelBtn.addEventListener("click", clearSelection);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") clearSelection();
     if (!selectedId) {
-      selectionBar.hidden = true;
-      return;
+      if (e.key === "ArrowLeft") navigate(-1);
+      if (e.key === "ArrowRight") navigate(1);
     }
-    const movie = movieById(selectedId);
-    selectionBar.hidden = false;
-    selectionText.textContent = movie ? `Placing "${movie.title}" — tap a quartile (or the pool to send it back)` : "";
-  }
+  });
 
   function attemptPlace(movieId, targetTierId) {
     const originTier = findTierOf(movieId);
@@ -149,59 +160,196 @@
     state.tierMovies[targetTierId].push(movieId);
     selectedId = null;
     persist();
-    renderPool();
     renderBoard();
-    updateSelectionBar();
+    renderRanker();
   }
 
-  function sendSelectedToPool() {
-    if (!selectedId) return;
-    const wasPlaced = findTierOf(selectedId) !== null;
-    removeFromTiers(selectedId);
-    selectedId = null;
-    if (wasPlaced) persist();
-    renderPool();
-    renderBoard();
-    updateSelectionBar();
-  }
-
-  // ---------- Rendering ----------
-  function renderPool() {
-    const query = searchInput.value.trim().toLowerCase();
-    moviePool.innerHTML = "";
-    const placed = placedIds();
-    const unplaced = MARVEL_MOVIES.filter((m) => !placed.has(m.id));
-    const filtered = unplaced.filter((m) => m.title.toLowerCase().includes(query));
-
-    if (filtered.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "pool-empty";
-      empty.textContent = unplaced.length === 0 ? `All ${TOTAL_MOVIES} movies ranked!` : "No matches.";
-      moviePool.appendChild(empty);
-      return;
-    }
-
-    let lastPhase = null;
-    filtered.forEach((movie) => {
-      if (movie.phase !== lastPhase) {
-        lastPhase = movie.phase;
-        const header = document.createElement("div");
-        header.className = "phase-header";
-        header.dataset.phase = String(movie.phase);
-        header.textContent = PHASE_LABELS[movie.phase] || `Phase ${movie.phase}`;
-        moviePool.appendChild(header);
-      }
-      const chip = document.createElement("div");
-      chip.className = "pool-chip";
-      if (movie.id === selectedId) chip.classList.add("selected");
-      chip.dataset.id = movie.id;
-      chip.dataset.phase = String(movie.phase);
-      chip.innerHTML = `<span class="title">${escapeHtml(movie.title)}</span><span class="yr">${movie.year || ""}</span>`;
-      chip.addEventListener("pointerdown", (e) => startDrag(e, movie, chip));
-      moviePool.appendChild(chip);
+  // ---------- Ranker (the big swipeable card + quartile buttons) ----------
+  function navigate(direction) {
+    if (selectedId) return;
+    const queue = getUnplacedFiltered();
+    const newIndex = rankerIndex + direction;
+    if (newIndex < 0 || newIndex >= queue.length) return;
+    flyCard(direction > 0 ? "left" : "right", () => {
+      rankerIndex = newIndex;
+      renderRanker();
     });
   }
 
+  rankerPrevBtn.addEventListener("click", () => navigate(-1));
+  rankerNextBtn.addEventListener("click", () => navigate(1));
+
+  // Animate the card exiting toward `exitSide`, run `mutate` (which changes
+  // what the card should show next), then slide the new content in from the
+  // opposite side.
+  function flyCard(exitSide, mutate) {
+    const exitX = exitSide === "left" ? -420 : 420;
+    rankerCard.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+    rankerCard.style.transform = `translateX(${exitX}px) rotate(${exitX / 28}deg)`;
+    rankerCard.style.opacity = "0";
+    window.setTimeout(() => {
+      mutate();
+      const enterX = exitSide === "left" ? 420 : -420;
+      rankerCard.classList.add("no-transition");
+      rankerCard.style.transform = `translateX(${enterX}px)`;
+      rankerCard.style.opacity = "0";
+      void rankerCard.offsetWidth; // force reflow so the next change animates
+      rankerCard.classList.remove("no-transition");
+      rankerCard.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+      rankerCard.style.transform = "translateX(0)";
+      rankerCard.style.opacity = "1";
+    }, FLY_MS);
+  }
+
+  // Placing a movie flies it up and away, distinct from left/right browsing.
+  function placeCurrentMovie(tierId) {
+    if (selectedId) {
+      attemptPlace(selectedId, tierId);
+      return;
+    }
+    const queue = getUnplacedFiltered();
+    const movie = queue[rankerIndex];
+    if (!movie) return;
+    if (state.tierMovies[tierId].length >= CAPACITY_BY_ID[tierId]) return; // button should be disabled already
+
+    rankerCard.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+    rankerCard.style.transform = "translateY(-36px) scale(0.92)";
+    rankerCard.style.opacity = "0";
+    window.setTimeout(() => {
+      state.tierMovies[tierId].push(movie.id);
+      persist();
+      renderBoard();
+      // rankerIndex is left unchanged: the placed movie drops out of the
+      // queue, so whatever follows it shifts up to this same index.
+      renderRanker();
+      rankerCard.classList.add("no-transition");
+      rankerCard.style.transform = "translateY(24px) scale(0.96)";
+      rankerCard.style.opacity = "0";
+      void rankerCard.offsetWidth;
+      rankerCard.classList.remove("no-transition");
+      rankerCard.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+      rankerCard.style.transform = "translateY(0) scale(1)";
+      rankerCard.style.opacity = "1";
+    }, FLY_MS);
+  }
+
+  function renderRanker() {
+    const queue = getUnplacedFiltered();
+    const reassigning = !!selectedId;
+    let movie = null;
+
+    if (reassigning) {
+      movie = movieById(selectedId);
+    } else if (queue.length > 0) {
+      if (rankerIndex >= queue.length) rankerIndex = queue.length - 1;
+      if (rankerIndex < 0) rankerIndex = 0;
+      movie = queue[rankerIndex];
+    }
+
+    rankerCancelBtn.hidden = !reassigning;
+    rankerPrevBtn.disabled = reassigning || rankerIndex <= 0;
+    rankerNextBtn.disabled = reassigning || !queue.length || rankerIndex >= queue.length - 1;
+    rankerCard.classList.toggle("reassigning", reassigning);
+
+    if (reassigning) {
+      const currentTier = movie ? state.tiers.find((t) => t.id === findTierOf(movie.id)) : null;
+      rankerStatus.textContent = movie ? `Reassigning "${movie.title}"${currentTier ? ` — currently in ${currentTier.label}` : ""}` : "";
+    } else if (queue.length > 0) {
+      rankerStatus.textContent = `${rankerIndex + 1} of ${queue.length} unranked`;
+    } else if (placedIds().size >= TOTAL_MOVIES) {
+      rankerStatus.textContent = `All ${TOTAL_MOVIES} movies ranked!`;
+    } else {
+      rankerStatus.textContent = "No matches for that search.";
+    }
+
+    if (movie) {
+      rankerCardPhase.textContent = PHASE_LABELS[movie.phase] || "";
+      rankerCardTitle.textContent = movie.title;
+      rankerCardYear.textContent = movie.year || "";
+      rankerCard.dataset.phase = String(movie.phase);
+    } else {
+      rankerCardPhase.textContent = "";
+      rankerCardTitle.textContent = placedIds().size >= TOTAL_MOVIES ? "🎉 All ranked" : "No matches";
+      rankerCardYear.textContent = "";
+      rankerCard.dataset.phase = "";
+    }
+
+    renderQuartileButtons(movie, reassigning);
+  }
+
+  function renderQuartileButtons(movie, reassigning) {
+    quartileButtonsEl.innerHTML = "";
+    const originTier = movie ? findTierOf(movie.id) : null;
+    state.tiers.forEach((tier, i) => {
+      const count = state.tierMovies[tier.id].length;
+      const capacity = CAPACITY_BY_ID[tier.id];
+      const full = count >= capacity;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "quartile-btn";
+      btn.dataset.tierIndex = String(i);
+      btn.disabled = !movie || (full && tier.id !== originTier);
+      btn.innerHTML = `<span class="qb-label">${escapeHtml(tier.label)}</span><span class="qb-count">${count}/${capacity}</span>`;
+      btn.addEventListener("click", () => placeCurrentMovie(tier.id));
+      quartileButtonsEl.appendChild(btn);
+    });
+    // Reassigning uses the same buttons; nothing extra to wire up here.
+    void reassigning;
+  }
+
+  // ---------- Ranker card swipe gesture ----------
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let dragCurrentX = 0;
+  let dragAxis = null; // 'x' | 'y' | null while a gesture is in progress
+
+  rankerCard.addEventListener("pointerdown", (e) => {
+    if (selectedId) return; // no swipe nav while reassigning a placed card
+    if (getUnplacedFiltered().length === 0) return;
+    dragAxis = "pending";
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    dragCurrentX = 0;
+    rankerCard.setPointerCapture(e.pointerId);
+  });
+
+  rankerCard.addEventListener("pointermove", (e) => {
+    if (dragAxis === null) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    if (dragAxis === "pending") {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      dragAxis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (dragAxis === "x") rankerCard.classList.add("no-transition");
+    }
+    if (dragAxis !== "x") return; // vertical gesture: let the page scroll
+    e.preventDefault();
+    dragCurrentX = dx;
+    rankerCard.style.transform = `translateX(${dx}px) rotate(${dx / 28}deg)`;
+  });
+
+  function endCardDrag(ev) {
+    if (dragAxis === "x") {
+      rankerCard.classList.remove("no-transition");
+      const dx = dragCurrentX;
+      const queue = getUnplacedFiltered();
+      if (dx <= -SWIPE_THRESHOLD && rankerIndex < queue.length - 1) {
+        navigate(1);
+      } else if (dx >= SWIPE_THRESHOLD && rankerIndex > 0) {
+        navigate(-1);
+      } else {
+        rankerCard.style.transition = "transform 0.2s ease";
+        rankerCard.style.transform = "translateX(0) rotate(0)";
+      }
+    }
+    dragAxis = null;
+    dragCurrentX = 0;
+  }
+
+  rankerCard.addEventListener("pointerup", endCardDrag);
+  rankerCard.addEventListener("pointercancel", endCardDrag);
+
+  // ---------- Board rendering ----------
   function renderProgress() {
     const placed = placedIds().size;
     const parts = state.tiers
@@ -243,6 +391,7 @@
         tier.label = val;
         persist();
         renderProgress();
+        renderRanker();
       });
       label.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
@@ -291,13 +440,12 @@
       if (selectedId === movie.id) selectedId = null;
       persist();
       renderBoard();
-      renderPool();
-      updateSelectionBar();
+      renderRanker();
     });
     return card;
   }
 
-  // ---------- Drag & drop (pointer events; works for pool chips and placed cards) ----------
+  // ---------- Drag & drop on the board (mouse-friendly reordering/removal) ----------
   function getAllTierRows() {
     return Array.from(tierBoard.querySelectorAll(".tier-row"));
   }
@@ -394,7 +542,7 @@
         const tier = state.tiers.find((t) => t.id === target.tierId);
         setStatus(`${tier.label} is full (${CAPACITY_BY_ID[target.tierId]}/${CAPACITY_BY_ID[target.tierId]}) — remove one first.`);
         renderBoard();
-        renderPool();
+        renderRanker();
         return;
       }
 
@@ -407,7 +555,7 @@
 
       persist();
       renderBoard();
-      renderPool();
+      renderRanker();
     }
 
     origin.addEventListener("pointermove", onMove);
@@ -418,23 +566,11 @@
     return String(str).replace(/["\\]/g, "\\$&");
   }
 
-  // ---------- Selection bar ----------
-  selectionCancelBtn.addEventListener("click", clearSelection);
-
-  // Tapping empty pool space places a selected tier-card back in the pool
-  // (or just cancels the selection if it was already unplaced).
-  poolPanel.addEventListener("click", (e) => {
-    if (!selectedId) return;
-    if (e.target.closest(".pool-chip") || e.target.closest("input") || e.target.closest("button")) return;
-    sendSelectedToPool();
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") clearSelection();
-  });
-
   // ---------- Search ----------
-  searchInput.addEventListener("input", renderPool);
+  searchInput.addEventListener("input", () => {
+    rankerIndex = 0;
+    renderRanker();
+  });
 
   // ---------- Reset ----------
   resetBtn.addEventListener("click", () => {
@@ -443,10 +579,10 @@
       state.tierMovies[t.id] = [];
     });
     selectedId = null;
+    rankerIndex = 0;
     persist();
     renderBoard();
-    renderPool();
-    updateSelectionBar();
+    renderRanker();
     setStatus("Board cleared.");
   });
 
@@ -465,6 +601,6 @@
     });
   });
 
-  renderPool();
   renderBoard();
+  renderRanker();
 })();
