@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marvel Movie Ranker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Marvel Movie Ranker</h1>
+    <p class="subtitle">Drag movies onto the chart. Edit the axis labels to define your own quadrants.</p>
+  </header>
+
+  <main class="layout">
+    <aside class="pool-panel">
+      <div class="pool-header">
+        <input id="search-input" type="text" placeholder="Search movies..." autocomplete="off">
+      </div>
+      <div id="movie-pool" class="movie-pool"></div>
+      <form id="add-movie-form" class="add-movie-form">
+        <input id="add-movie-title" type="text" placeholder="Add a movie (title)" required>
+        <input id="add-movie-year" type="number" placeholder="Year" min="1940" max="2100">
+        <button type="submit">+ Add</button>
+      </form>
+      <div class="pool-actions">
+        <button id="reset-btn" class="secondary-btn">Reset board</button>
+        <button id="export-btn" class="secondary-btn">Export PNG</button>
+      </div>
+    </aside>
+
+    <section class="board-wrap">
+      <div id="board" class="board">
+        <div class="quadrant-bg q-top-left"></div>
+        <div class="quadrant-bg q-top-right"></div>
+        <div class="quadrant-bg q-bottom-left"></div>
+        <div class="quadrant-bg q-bottom-right"></div>
+        <div class="axis-line axis-v"></div>
+        <div class="axis-line axis-h"></div>
+        <div id="cards-layer" class="cards-layer"></div>
+      </div>
+      <div class="axis-label axis-label-top" id="label-top" contenteditable="true" spellcheck="false">Great</div>
+      <div class="axis-label axis-label-bottom" id="label-bottom" contenteditable="true" spellcheck="false">Bad</div>
+      <div class="axis-label axis-label-left" id="label-left" contenteditable="true" spellcheck="false">Skip it</div>
+      <div class="axis-label axis-label-right" id="label-right" contenteditable="true" spellcheck="false">Rewatch forever</div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span id="status-text"></span>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="movies.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
