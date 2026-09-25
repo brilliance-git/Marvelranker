@@ -105,11 +105,20 @@
       return;
     }
 
+    let lastPhase = null;
     filtered.forEach((movie) => {
+      if (movie.phase !== lastPhase) {
+        lastPhase = movie.phase;
+        const header = document.createElement("div");
+        header.className = "phase-header";
+        header.dataset.phase = String(movie.phase);
+        header.textContent = PHASE_LABELS[movie.phase] || `Phase ${movie.phase}`;
+        moviePool.appendChild(header);
+      }
       const chip = document.createElement("div");
       chip.className = "pool-chip";
       chip.dataset.id = movie.id;
-      chip.dataset.era = movie.era || "";
+      chip.dataset.phase = String(movie.phase);
       chip.innerHTML = `<span class="title">${escapeHtml(movie.title)}</span><span class="yr">${movie.year || ""}</span>`;
       chip.addEventListener("pointerdown", (e) => startDrag(e, movie, null));
       moviePool.appendChild(chip);
@@ -182,7 +191,7 @@
     const card = document.createElement("div");
     card.className = "movie-card";
     card.dataset.id = movie.id;
-    card.dataset.era = movie.era || "";
+    card.dataset.phase = String(movie.phase);
     card.innerHTML = `<span class="title">${escapeHtml(movie.title)}${movie.year ? ` (${movie.year})` : ""}</span><span class="remove-x" title="Send back to pool">✕</span>`;
     card.addEventListener("pointerdown", (e) => {
       if (e.target.classList.contains("remove-x")) return;
@@ -245,7 +254,7 @@
 
     const ghost = document.createElement("div");
     ghost.className = "movie-card drag-ghost";
-    ghost.dataset.era = movie.era || "";
+    ghost.dataset.phase = String(movie.phase);
     ghost.textContent = movie.title;
     ghost.style.left = e.clientX + "px";
     ghost.style.top = e.clientY + "px";
