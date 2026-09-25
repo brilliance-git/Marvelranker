@@ -9,34 +9,23 @@
 <body>
   <header class="app-header">
     <h1>Marvel Movie Ranker</h1>
-    <p class="subtitle">Swipe or tap the arrows to browse. Tap a quartile button to place the movie — they're always on screen, no scrolling needed.</p>
+    <p class="subtitle">Tap a movie below, then tap a quartile to place it — the buttons stay on screen. Inside a quartile, drag a movie up or down to set its exact rank.</p>
   </header>
 
-  <section class="ranker-panel" id="ranker-panel">
-    <div class="ranker-top">
-      <input id="search-input" type="text" placeholder="Search movies..." autocomplete="off">
-      <div class="ranker-status-row">
-        <span id="ranker-status" class="ranker-status"></span>
-        <button type="button" id="ranker-cancel" class="ranker-cancel-btn" hidden>Cancel</button>
-      </div>
+  <section class="control-panel" id="control-panel">
+    <input id="search-input" type="text" placeholder="Search movies..." autocomplete="off">
+    <div class="selection-row">
+      <span id="selection-status" class="selection-status"></span>
+      <button type="button" id="selection-cancel" class="selection-cancel-btn" hidden>Cancel</button>
     </div>
-
-    <div class="ranker-stage">
-      <button type="button" class="ranker-nav ranker-prev" id="ranker-prev" aria-label="Previous movie">‹</button>
-      <div class="ranker-card-viewport">
-        <div class="ranker-card" id="ranker-card">
-          <div class="ranker-card-phase" id="ranker-card-phase"></div>
-          <div class="ranker-card-title" id="ranker-card-title"></div>
-          <div class="ranker-card-year" id="ranker-card-year"></div>
-        </div>
-      </div>
-      <button type="button" class="ranker-nav ranker-next" id="ranker-next" aria-label="Next movie">›</button>
-    </div>
-
     <div class="quartile-buttons" id="quartile-buttons"></div>
   </section>
 
   <main class="layout">
+    <aside class="pool-panel">
+      <div id="movie-pool" class="movie-pool"></div>
+    </aside>
+
     <section class="board-wrap">
       <div class="board-header-row">
         <div id="progress-summary" class="progress-summary"></div>

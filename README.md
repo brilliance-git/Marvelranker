@@ -16,19 +16,20 @@ real stack rank: you can't just pile everything into "Top."
   quartile (shown live as "x / capacity" on each row). A quartile that's
   full rejects new drops until you remove something — that's the point of
   a stack rank.
-- **Built around a single big swipeable card**, sized and gestured for a
-  phone: swipe left/right (or tap the arrow buttons) to browse unplaced
-  movies one at a time, and tap one of the 4 quartile buttons — docked
-  right under the card in a sticky panel, always on screen — to place it.
-  No scrolling to reach "Third" or "Bottom," ever.
-  - Full-size mouse **drag** onto the board also still works for desktop
-    users who prefer it.
-  - To move or remove an already-placed movie: tap its card on the board
-    below (the sticky ranker panel switches to "Reassigning…" with a
-    Cancel button, and the same quartile buttons now target it), or tap
-    its ✕ to send it straight back to the pool.
-- Search box to filter which movies the card cycles through, grouped by
-  MCU phase in the underlying list.
+- **Click/tap any movie in the list** to select it, then tap one of the
+  4 quartile buttons — docked in a sticky panel pinned to the top of the
+  screen — to place it. No scrolling to reach "Third" or "Bottom," ever.
+  - To move or remove an already-placed movie: tap its row on the board
+    below (the sticky panel switches to "Reassigning…" with a Cancel
+    button, and the same quartile buttons now target it), or tap its ✕
+    to send it straight back to the pool.
+- **Each quartile is a real ordered stack-rank list**, not just an
+  unordered bucket: movies show a rank number, and you can **drag a row
+  up or down within its quartile to set its exact position**, or drag it
+  into a different quartile entirely. Dragging near the top/bottom edge
+  of the screen auto-scrolls the page, so reordering works even when a
+  quartile's list is taller than the viewport. Works with mouse or touch.
+- Search box to filter the movie list, grouped by MCU phase.
 - Your ranking is saved automatically in the browser's local storage — it's
   all client-side, nothing is sent to a server.
 - Export the finished ranking as a PNG.
