@@ -1,4 +1,6 @@
-// Marvel Studios (MCU) theatrical releases, in release order.
+// Marvel Studios (MCU) theatrical releases, in release order, through the
+// most recent Spider-Man film. Non-MCU Marvel movies (Sony's Spider-Man
+// Universe, Fox's X-Men/Fantastic Four, etc.) are intentionally excluded.
 // `era` is used only for a subtle color accent on cards.
 const MARVEL_MOVIES = [
   { id: "iron-man", title: "Iron Man", year: 2008, era: "infinity" },
@@ -38,4 +40,5 @@ const MARVEL_MOVIES = [
   { id: "captain-america-brave-new-world", title: "Captain America: Brave New World", year: 2025, era: "multiverse" },
   { id: "thunderbolts", title: "Thunderbolts*", year: 2025, era: "multiverse" },
   { id: "fantastic-four-first-steps", title: "Fantastic Four: First Steps", year: 2025, era: "multiverse" },
+  { id: "spider-man-brand-new-day", title: "Spider-Man: Brand New Day", year: 2026, era: "multiverse" },
 ];

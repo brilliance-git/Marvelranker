@@ -1,25 +1,28 @@
 # Marvel Movie Ranker
 
-A single-page app for ranking Marvel movies into tiers — Top / Middle /
-Middle / Bottom by default, but you can rename any tier. Drag movies from
-the pool into a tier, drag between tiers to re-rank, and export the result
-as an image.
+A single-page app for stack-ranking every MCU movie into a forced quartile
+split — Top Quartile / Second Quartile / Third Quartile / Bottom Quartile
+(rename any of them by clicking the name). Each quartile's capacity is
+fixed to an equal share of the full movie list, so the ranking works like a
+real stack rank: you can't just pile everything into "Top."
 
 ## Features
 
-- Pre-loaded with all Marvel Studios (MCU) theatrical releases, Iron Man
-  (2008) through Fantastic Four: First Steps (2025).
-- 4-tier board (Top / Middle / Middle / Bottom) — click any tier name to
-  rename it.
-- Drag movies from the side pool into a tier; drag placed movies between
-  tiers or to reorder within a tier; drag a card out of the board (or click
-  the ✕) to send it back to the pool.
+- Every Marvel Studios (MCU) theatrical release, Iron Man (2008) through
+  the most recent Spider-Man film, Spider-Man: Brand New Day (2026) —
+  38 movies. Non-MCU Marvel movies (Sony's Spider-Man Universe, Fox's
+  X-Men, etc.) are intentionally excluded.
+- Forced 4-way quartile split: with 38 movies that's 10 / 10 / 9 / 9 per
+  quartile (shown live as "x / capacity" on each row). A quartile that's
+  full rejects new drops until you remove something — that's the point of
+  a stack rank.
+- Drag movies from the side pool into a quartile; drag placed movies
+  between quartiles or to reorder within one; drag a card out of the board
+  (or click the ✕) to send it back to the pool.
 - Search box to filter the movie pool.
-- Add your own movies (Sony's Spider-Man Universe, X-Men, Blade, Fantastic
-  Four (2005), etc.) via the "+ Add" form.
 - Your ranking is saved automatically in the browser's local storage — it's
   all client-side, nothing is sent to a server.
-- Export the finished tier list as a PNG.
+- Export the finished ranking as a PNG.
 
 ## Running it locally
 

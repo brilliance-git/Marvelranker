@@ -119,39 +119,6 @@ html, body {
   padding: 8px 2px;
 }
 
-.add-movie-form {
-  display: flex;
-  gap: 6px;
-}
-
-.add-movie-form input[type="text"] {
-  flex: 1;
-  min-width: 0;
-}
-
-.add-movie-form input {
-  padding: 7px 8px;
-  background: var(--bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 0.82rem;
-}
-
-.add-movie-form input[type="number"] {
-  width: 68px;
-}
-
-.add-movie-form button {
-  padding: 7px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--panel-border);
-  background: var(--accent);
-  color: white;
-  font-size: 0.82rem;
-  cursor: pointer;
-}
-
 .pool-actions {
   display: flex;
   gap: 8px;
@@ -179,6 +146,12 @@ html, body {
   min-width: 0;
 }
 
+.progress-summary {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+}
+
 .tier-board {
   display: flex;
   flex-direction: column;
@@ -195,24 +168,35 @@ html, body {
   min-height: 84px;
 }
 
-.tier-label {
+.tier-label-wrap {
   flex-shrink: 0;
   width: 140px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  text-align: center;
-  padding: 10px 8px;
-  font-weight: 700;
-  font-size: 1rem;
-  outline: none;
   color: #0c0d12;
 }
 
-.tier-row[data-tier-index="0"] .tier-label { background: #e8b13a; }
-.tier-row[data-tier-index="1"] .tier-label { background: #d9793f; color: #171114; }
-.tier-row[data-tier-index="2"] .tier-label { background: #4d7ea8; color: #f2f2f5; }
-.tier-row[data-tier-index="3"] .tier-label { background: #4a4e5c; color: #f2f2f5; }
+.tier-label {
+  text-align: center;
+  padding: 10px 8px 2px;
+  font-weight: 700;
+  font-size: 1rem;
+  outline: none;
+}
+
+.tier-capacity {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.75;
+  padding-bottom: 8px;
+}
+
+.tier-row[data-tier-index="0"] .tier-label-wrap { background: #e8b13a; }
+.tier-row[data-tier-index="1"] .tier-label-wrap { background: #d9793f; color: #171114; }
+.tier-row[data-tier-index="2"] .tier-label-wrap { background: #4d7ea8; color: #f2f2f5; }
+.tier-row[data-tier-index="3"] .tier-label-wrap { background: #4a4e5c; color: #f2f2f5; }
 
 .tier-cards {
   flex: 1;
@@ -226,6 +210,11 @@ html, body {
 
 .tier-row.drag-over {
   outline: 2px dashed var(--accent-gold);
+  outline-offset: -2px;
+}
+
+.tier-row.drag-over-full {
+  outline: 2px dashed var(--accent);
   outline-offset: -2px;
 }
 
@@ -288,7 +277,16 @@ html, body {
     flex-direction: column;
     min-height: unset;
   }
-  .tier-label {
+  .tier-label-wrap {
     width: 100%;
+    flex-direction: row;
+    gap: 8px;
+    padding: 6px;
+  }
+  .tier-label {
+    padding: 0;
+  }
+  .tier-capacity {
+    padding-bottom: 0;
   }
 }

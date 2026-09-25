@@ -9,7 +9,7 @@
 <body>
   <header class="app-header">
     <h1>Marvel Movie Ranker</h1>
-    <p class="subtitle">Drag movies into a tier. Click a tier name to rename it.</p>
+    <p class="subtitle">Stack rank every MCU movie into a forced quartile split — each quartile holds an equal share of the list. Click a quartile name to rename it.</p>
   </header>
 
   <main class="layout">
@@ -18,11 +18,6 @@
         <input id="search-input" type="text" placeholder="Search movies..." autocomplete="off">
       </div>
       <div id="movie-pool" class="movie-pool"></div>
-      <form id="add-movie-form" class="add-movie-form">
-        <input id="add-movie-title" type="text" placeholder="Add a movie (title)" required>
-        <input id="add-movie-year" type="number" placeholder="Year" min="1940" max="2100">
-        <button type="submit">+ Add</button>
-      </form>
       <div class="pool-actions">
         <button id="reset-btn" class="secondary-btn">Reset board</button>
         <button id="export-btn" class="secondary-btn">Export PNG</button>
@@ -30,6 +25,7 @@
     </aside>
 
     <section class="board-wrap">
+      <div id="progress-summary" class="progress-summary"></div>
       <div id="tier-board" class="tier-board"></div>
     </section>
   </main>

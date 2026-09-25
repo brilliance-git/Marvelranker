@@ -1,24 +1,31 @@
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "marvel-ranker-state-v2";
+  const STORAGE_KEY = "marvel-ranker-state-v3";
 
   const tierBoard = document.getElementById("tier-board");
+  const progressSummary = document.getElementById("progress-summary");
   const moviePool = document.getElementById("movie-pool");
   const searchInput = document.getElementById("search-input");
-  const addForm = document.getElementById("add-movie-form");
-  const addTitleInput = document.getElementById("add-movie-title");
-  const addYearInput = document.getElementById("add-movie-year");
   const resetBtn = document.getElementById("reset-btn");
   const exportBtn = document.getElementById("export-btn");
   const statusText = document.getElementById("status-text");
 
   const DEFAULT_TIERS = [
-    { id: "top", label: "Top" },
-    { id: "mid-upper", label: "Middle" },
-    { id: "mid-lower", label: "Middle" },
-    { id: "bottom", label: "Bottom" },
+    { id: "top", label: "Top Quartile" },
+    { id: "second", label: "Second Quartile" },
+    { id: "third", label: "Third Quartile" },
+    { id: "bottom", label: "Bottom Quartile" },
   ];
+
+  // Forced-distribution capacities: split the fixed movie population into
+  // four equal-as-possible groups. Any remainder is given to the earlier
+  // (higher) quartiles first.
+  const TOTAL_MOVIES = MARVEL_MOVIES.length;
+  const BASE_SIZE = Math.floor(TOTAL_MOVIES / DEFAULT_TIERS.length);
+  const REMAINDER = TOTAL_MOVIES % DEFAULT_TIERS.length;
+  const CAPACITIES = DEFAULT_TIERS.map((_, i) => BASE_SIZE + (i < REMAINDER ? 1 : 0));
+  const CAPACITY_BY_ID = Object.fromEntries(DEFAULT_TIERS.map((t, i) => [t.id, CAPACITIES[i]]));
 
   function loadState() {
     try {
@@ -35,32 +42,23 @@
   const state = {
     tiers: (saved && saved.tiers) || DEFAULT_TIERS.map((t) => ({ ...t })),
     tierMovies: (saved && saved.tierMovies) || Object.fromEntries(DEFAULT_TIERS.map((t) => [t.id, []])),
-    customMovies: (saved && saved.customMovies) || [],
   };
 
-  // Make sure every tier defined in state.tiers has a movies array.
+  // Guard against a stale save (e.g. movie list changed): drop any movie
+  // ids that no longer exist, and make sure every current tier has an array.
   state.tiers.forEach((t) => {
     if (!state.tierMovies[t.id]) state.tierMovies[t.id] = [];
   });
-
-  function allMovies() {
-    return MARVEL_MOVIES.concat(state.customMovies);
-  }
+  Object.keys(state.tierMovies).forEach((tierId) => {
+    state.tierMovies[tierId] = state.tierMovies[tierId].filter((id) => movieById(id));
+  });
 
   function movieById(id) {
-    return allMovies().find((m) => m.id === id);
+    return MARVEL_MOVIES.find((m) => m.id === id);
   }
 
   function placedIds() {
     return new Set(Object.values(state.tierMovies).flat());
-  }
-
-  function findPlacement(id) {
-    for (const tier of state.tiers) {
-      const idx = state.tierMovies[tier.id].indexOf(id);
-      if (idx !== -1) return { tierId: tier.id, index: idx };
-    }
-    return null;
   }
 
   function removeFromTiers(id) {
@@ -96,13 +94,13 @@
     const query = searchInput.value.trim().toLowerCase();
     moviePool.innerHTML = "";
     const placed = placedIds();
-    const unplaced = allMovies().filter((m) => !placed.has(m.id));
+    const unplaced = MARVEL_MOVIES.filter((m) => !placed.has(m.id));
     const filtered = unplaced.filter((m) => m.title.toLowerCase().includes(query));
 
     if (filtered.length === 0) {
       const empty = document.createElement("div");
       empty.className = "pool-empty";
-      empty.textContent = unplaced.length === 0 ? "All movies placed in a tier." : "No matches.";
+      empty.textContent = unplaced.length === 0 ? `All ${TOTAL_MOVIES} movies ranked!` : "No matches.";
       moviePool.appendChild(empty);
       return;
     }
@@ -118,13 +116,25 @@
     });
   }
 
+  function renderProgress() {
+    const placed = placedIds().size;
+    const parts = state.tiers
+      .map((t) => `${escapeHtml(t.label)} ${state.tierMovies[t.id].length}/${CAPACITY_BY_ID[t.id]}`)
+      .join(" &middot; ");
+    progressSummary.innerHTML = `Ranked ${placed} / ${TOTAL_MOVIES} &mdash; ${parts}`;
+  }
+
   function renderBoard() {
     tierBoard.innerHTML = "";
     state.tiers.forEach((tier, i) => {
+      const capacity = CAPACITY_BY_ID[tier.id];
       const row = document.createElement("div");
       row.className = "tier-row";
       row.dataset.tier = tier.id;
       row.dataset.tierIndex = String(i);
+
+      const labelWrap = document.createElement("div");
+      labelWrap.className = "tier-label-wrap";
 
       const label = document.createElement("div");
       label.className = "tier-label";
@@ -136,6 +146,7 @@
         label.textContent = val;
         tier.label = val;
         persist();
+        renderProgress();
       });
       label.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
@@ -143,7 +154,14 @@
           label.blur();
         }
       });
-      row.appendChild(label);
+      labelWrap.appendChild(label);
+
+      const cap = document.createElement("div");
+      cap.className = "tier-capacity";
+      cap.textContent = `${state.tierMovies[tier.id].length} / ${capacity}`;
+      labelWrap.appendChild(cap);
+
+      row.appendChild(labelWrap);
 
       const cardsContainer = document.createElement("div");
       cardsContainer.className = "tier-cards";
@@ -157,6 +175,7 @@
 
       tierBoard.appendChild(row);
     });
+    renderProgress();
   }
 
   function buildCard(movie) {
@@ -164,7 +183,7 @@
     card.className = "movie-card";
     card.dataset.id = movie.id;
     card.dataset.era = movie.era || "";
-    card.innerHTML = `<span class="title">${escapeHtml(movie.title)}${movie.year ? ` (${movie.year})` : ""}</span><span class="remove-x" title="Remove from board">✕</span>`;
+    card.innerHTML = `<span class="title">${escapeHtml(movie.title)}${movie.year ? ` (${movie.year})` : ""}</span><span class="remove-x" title="Send back to pool">✕</span>`;
     card.addEventListener("pointerdown", (e) => {
       if (e.target.classList.contains("remove-x")) return;
       startDrag(e, movie, card);
@@ -210,7 +229,7 @@
   }
 
   function clearDragOverStyles() {
-    getAllTierRows().forEach((r) => r.classList.remove("drag-over"));
+    getAllTierRows().forEach((r) => r.classList.remove("drag-over", "drag-over-full"));
   }
 
   function startDrag(e, movie, sourceCardEl) {
@@ -232,6 +251,10 @@
     ghost.style.top = e.clientY + "px";
     document.body.appendChild(ghost);
 
+    function tierIsFull(tierId) {
+      return state.tierMovies[tierId].length >= CAPACITY_BY_ID[tierId];
+    }
+
     function onMove(ev) {
       ghost.style.left = ev.clientX + "px";
       ghost.style.top = ev.clientY + "px";
@@ -239,7 +262,7 @@
       const target = computeDropTarget(ev.clientX, ev.clientY);
       if (target) {
         const row = tierBoard.querySelector(`.tier-row[data-tier="${cssEscape(target.tierId)}"]`);
-        if (row) row.classList.add("drag-over");
+        if (row) row.classList.add(tierIsFull(target.tierId) ? "drag-over-full" : "drag-over");
       }
     }
 
@@ -251,8 +274,16 @@
       origin.style.display = originalDisplay;
 
       const target = computeDropTarget(ev.clientX, ev.clientY);
-      removeFromTiers(movie.id);
 
+      if (target && tierIsFull(target.tierId)) {
+        const tier = state.tiers.find((t) => t.id === target.tierId);
+        setStatus(`${tier.label} is full (${CAPACITY_BY_ID[target.tierId]}/${CAPACITY_BY_ID[target.tierId]}) — remove one first.`);
+        renderBoard();
+        renderPool();
+        return;
+      }
+
+      removeFromTiers(movie.id);
       if (target) {
         state.tierMovies[target.tierId].splice(target.index, 0, movie.id);
       }
@@ -272,27 +303,12 @@
     return String(str).replace(/["\\]/g, "\\$&");
   }
 
-  // ---------- Add movie ----------
-  addForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const title = addTitleInput.value.trim();
-    if (!title) return;
-    const year = addYearInput.value ? parseInt(addYearInput.value, 10) : undefined;
-    const id = "custom-" + title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now();
-    state.customMovies.push({ id, title, year, era: "custom" });
-    persist();
-    addTitleInput.value = "";
-    addYearInput.value = "";
-    renderPool();
-    setStatus(`Added "${title}"`);
-  });
-
   // ---------- Search ----------
   searchInput.addEventListener("input", renderPool);
 
   // ---------- Reset ----------
   resetBtn.addEventListener("click", () => {
-    if (!confirm("Clear all movie placements from the board? Custom movies you added will stay in the list.")) return;
+    if (!confirm("Clear all movie placements from the board?")) return;
     state.tiers.forEach((t) => {
       state.tierMovies[t.id] = [];
     });
