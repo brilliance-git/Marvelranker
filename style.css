@@ -6,10 +6,6 @@
   --text-dim: #9a9ca8;
   --accent: #ed1d24;
   --accent-gold: #e8b13a;
-  --q-tl: rgba(237, 29, 36, 0.10);
-  --q-tr: rgba(232, 177, 58, 0.14);
-  --q-bl: rgba(90, 95, 120, 0.10);
-  --q-br: rgba(46, 134, 93, 0.10);
   --card-bg: #1f222c;
   --card-border: #333744;
 }
@@ -176,54 +172,64 @@ html, body {
   border-color: var(--accent-gold);
 }
 
+/* ---------- Tier board ---------- */
+
 .board-wrap {
   flex: 1;
-  display: grid;
-  grid-template-columns: minmax(64px, 110px) 1fr minmax(64px, 110px);
-  grid-template-rows: auto 1fr auto;
-  grid-template-areas:
-    ".    top    ."
-    "left board right"
-    ".    bottom .";
-  gap: 6px;
-  min-height: 640px;
+  min-width: 0;
 }
 
-.board {
-  grid-area: board;
-  position: relative;
+.tier-board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tier-row {
+  display: flex;
+  align-items: stretch;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   overflow: hidden;
-  min-height: 520px;
+  min-height: 84px;
 }
 
-.quadrant-bg {
-  position: absolute;
-  width: 50%;
-  height: 50%;
+.tier-label {
+  flex-shrink: 0;
+  width: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 10px 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  outline: none;
+  color: #0c0d12;
 }
-.q-top-left { top: 0; left: 0; background: var(--q-tl); }
-.q-top-right { top: 0; right: 0; background: var(--q-tr); }
-.q-bottom-left { bottom: 0; left: 0; background: var(--q-bl); }
-.q-bottom-right { bottom: 0; right: 0; background: var(--q-br); }
 
-.axis-line {
-  position: absolute;
-  background: var(--panel-border);
+.tier-row[data-tier-index="0"] .tier-label { background: #e8b13a; }
+.tier-row[data-tier-index="1"] .tier-label { background: #d9793f; color: #171114; }
+.tier-row[data-tier-index="2"] .tier-label { background: #4d7ea8; color: #f2f2f5; }
+.tier-row[data-tier-index="3"] .tier-label { background: #4a4e5c; color: #f2f2f5; }
+
+.tier-cards {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+  padding: 10px;
+  min-height: 84px;
 }
-.axis-v { left: 50%; top: 0; bottom: 0; width: 1px; }
-.axis-h { top: 50%; left: 0; right: 0; height: 1px; }
 
-.cards-layer {
-  position: absolute;
-  inset: 0;
+.tier-row.drag-over {
+  outline: 2px dashed var(--accent-gold);
+  outline-offset: -2px;
 }
 
 .movie-card {
-  position: absolute;
-  transform: translate(-50%, -50%);
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 8px;
@@ -235,19 +241,22 @@ html, body {
   touch-action: none;
   box-shadow: 0 2px 6px rgba(0,0,0,0.35);
   border-top: 3px solid var(--accent);
-  max-width: 220px;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
+  height: fit-content;
 }
 
 .movie-card[data-era="multiverse"] {
   border-top-color: var(--accent-gold);
 }
 
-.movie-card.dragging {
-  z-index: 50;
+.movie-card.drag-ghost {
+  position: fixed;
+  z-index: 999;
+  pointer-events: none;
+  opacity: 0.9;
   cursor: grabbing;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.5);
 }
 
 .movie-card .remove-x {
@@ -257,38 +266,6 @@ html, body {
 }
 .movie-card .remove-x:hover {
   color: var(--accent);
-}
-
-.axis-label {
-  color: var(--text-dim);
-  font-size: 0.82rem;
-  font-weight: 600;
-  text-align: center;
-  padding: 4px 2px;
-  border-radius: 6px;
-  outline: none;
-}
-.axis-label:focus {
-  color: var(--text);
-  background: var(--panel);
-}
-
-.axis-label-top { grid-area: top; }
-.axis-label-bottom { grid-area: bottom; }
-.axis-label-left {
-  grid-area: left;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-}
-.axis-label-right {
-  grid-area: right;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  writing-mode: vertical-rl;
 }
 
 .app-footer {
@@ -307,11 +284,11 @@ html, body {
     position: static;
     max-height: 260px;
   }
-  .board-wrap {
-    grid-template-columns: 40px 1fr 40px;
-    min-height: 420px;
+  .tier-row {
+    flex-direction: column;
+    min-height: unset;
   }
-  .board {
-    min-height: 360px;
+  .tier-label {
+    width: 100%;
   }
 }

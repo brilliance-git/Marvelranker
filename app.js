@@ -1,10 +1,9 @@
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "marvel-ranker-state-v1";
+  const STORAGE_KEY = "marvel-ranker-state-v2";
 
-  const board = document.getElementById("board");
-  const cardsLayer = document.getElementById("cards-layer");
+  const tierBoard = document.getElementById("tier-board");
   const moviePool = document.getElementById("movie-pool");
   const searchInput = document.getElementById("search-input");
   const addForm = document.getElementById("add-movie-form");
@@ -13,12 +12,13 @@
   const resetBtn = document.getElementById("reset-btn");
   const exportBtn = document.getElementById("export-btn");
   const statusText = document.getElementById("status-text");
-  const labelEls = {
-    top: document.getElementById("label-top"),
-    bottom: document.getElementById("label-bottom"),
-    left: document.getElementById("label-left"),
-    right: document.getElementById("label-right"),
-  };
+
+  const DEFAULT_TIERS = [
+    { id: "top", label: "Top" },
+    { id: "mid-upper", label: "Middle" },
+    { id: "mid-lower", label: "Middle" },
+    { id: "bottom", label: "Bottom" },
+  ];
 
   function loadState() {
     try {
@@ -33,13 +33,15 @@
   const saved = loadState();
 
   const state = {
-    placements: (saved && saved.placements) || {},
+    tiers: (saved && saved.tiers) || DEFAULT_TIERS.map((t) => ({ ...t })),
+    tierMovies: (saved && saved.tierMovies) || Object.fromEntries(DEFAULT_TIERS.map((t) => [t.id, []])),
     customMovies: (saved && saved.customMovies) || [],
-    labels: Object.assign(
-      { top: "Great", bottom: "Bad", left: "Skip it", right: "Rewatch forever" },
-      (saved && saved.labels) || {}
-    ),
   };
+
+  // Make sure every tier defined in state.tiers has a movies array.
+  state.tiers.forEach((t) => {
+    if (!state.tierMovies[t.id]) state.tierMovies[t.id] = [];
+  });
 
   function allMovies() {
     return MARVEL_MOVIES.concat(state.customMovies);
@@ -47,6 +49,26 @@
 
   function movieById(id) {
     return allMovies().find((m) => m.id === id);
+  }
+
+  function placedIds() {
+    return new Set(Object.values(state.tierMovies).flat());
+  }
+
+  function findPlacement(id) {
+    for (const tier of state.tiers) {
+      const idx = state.tierMovies[tier.id].indexOf(id);
+      if (idx !== -1) return { tierId: tier.id, index: idx };
+    }
+    return null;
+  }
+
+  function removeFromTiers(id) {
+    for (const tierId in state.tierMovies) {
+      const arr = state.tierMovies[tierId];
+      const idx = arr.indexOf(id);
+      if (idx !== -1) arr.splice(idx, 1);
+    }
   }
 
   function persist() {
@@ -63,38 +85,24 @@
     }
   }
 
-  // ---------- Labels ----------
-  Object.entries(labelEls).forEach(([key, el]) => {
-    el.textContent = state.labels[key];
-    el.addEventListener("blur", () => {
-      const val = el.textContent.trim() || state.labels[key];
-      el.textContent = val;
-      state.labels[key] = val;
-      persist();
-    });
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        el.blur();
-      }
-    });
-  });
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
 
   // ---------- Rendering ----------
   function renderPool() {
     const query = searchInput.value.trim().toLowerCase();
     moviePool.innerHTML = "";
-    const unplaced = allMovies().filter((m) => !(m.id in state.placements));
-    const filtered = unplaced.filter((m) =>
-      m.title.toLowerCase().includes(query)
-    );
+    const placed = placedIds();
+    const unplaced = allMovies().filter((m) => !placed.has(m.id));
+    const filtered = unplaced.filter((m) => m.title.toLowerCase().includes(query));
 
     if (filtered.length === 0) {
       const empty = document.createElement("div");
       empty.className = "pool-empty";
-      empty.textContent = unplaced.length === 0
-        ? "All movies placed on the board."
-        : "No matches.";
+      empty.textContent = unplaced.length === 0 ? "All movies placed in a tier." : "No matches.";
       moviePool.appendChild(empty);
       return;
     }
@@ -105,140 +113,163 @@
       chip.dataset.id = movie.id;
       chip.dataset.era = movie.era || "";
       chip.innerHTML = `<span class="title">${escapeHtml(movie.title)}</span><span class="yr">${movie.year || ""}</span>`;
-      chip.addEventListener("pointerdown", (e) => startChipDrag(e, movie, chip));
+      chip.addEventListener("pointerdown", (e) => startDrag(e, movie, null));
       moviePool.appendChild(chip);
     });
   }
 
-  function renderCards() {
-    cardsLayer.innerHTML = "";
-    Object.entries(state.placements).forEach(([id, pos]) => {
-      const movie = movieById(id);
-      if (!movie) return;
-      const card = buildCard(movie, pos);
-      cardsLayer.appendChild(card);
+  function renderBoard() {
+    tierBoard.innerHTML = "";
+    state.tiers.forEach((tier, i) => {
+      const row = document.createElement("div");
+      row.className = "tier-row";
+      row.dataset.tier = tier.id;
+      row.dataset.tierIndex = String(i);
+
+      const label = document.createElement("div");
+      label.className = "tier-label";
+      label.contentEditable = "true";
+      label.spellcheck = false;
+      label.textContent = tier.label;
+      label.addEventListener("blur", () => {
+        const val = label.textContent.trim() || tier.label;
+        label.textContent = val;
+        tier.label = val;
+        persist();
+      });
+      label.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          label.blur();
+        }
+      });
+      row.appendChild(label);
+
+      const cardsContainer = document.createElement("div");
+      cardsContainer.className = "tier-cards";
+      cardsContainer.dataset.tier = tier.id;
+      state.tierMovies[tier.id].forEach((id) => {
+        const movie = movieById(id);
+        if (!movie) return;
+        cardsContainer.appendChild(buildCard(movie));
+      });
+      row.appendChild(cardsContainer);
+
+      tierBoard.appendChild(row);
     });
   }
 
-  function buildCard(movie, pos) {
+  function buildCard(movie) {
     const card = document.createElement("div");
     card.className = "movie-card";
     card.dataset.id = movie.id;
     card.dataset.era = movie.era || "";
-    card.style.left = pos.x + "%";
-    card.style.top = pos.y + "%";
     card.innerHTML = `<span class="title">${escapeHtml(movie.title)}${movie.year ? ` (${movie.year})` : ""}</span><span class="remove-x" title="Remove from board">✕</span>`;
     card.addEventListener("pointerdown", (e) => {
       if (e.target.classList.contains("remove-x")) return;
-      startCardDrag(e, movie, card);
+      startDrag(e, movie, card);
     });
     card.querySelector(".remove-x").addEventListener("click", () => {
-      delete state.placements[movie.id];
+      removeFromTiers(movie.id);
       persist();
-      renderCards();
+      renderBoard();
       renderPool();
     });
     return card;
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
+  // ---------- Drag & drop (pointer events; works for pool chips and placed cards) ----------
+  function getAllTierRows() {
+    return Array.from(tierBoard.querySelectorAll(".tier-row"));
   }
 
-  // ---------- Drag: existing card reposition ----------
-  function startCardDrag(e, movie, card) {
-    e.preventDefault();
-    card.setPointerCapture(e.pointerId);
-    card.classList.add("dragging");
-
-    function onMove(ev) {
-      const rect = board.getBoundingClientRect();
-      let x = ((ev.clientX - rect.left) / rect.width) * 100;
-      let y = ((ev.clientY - rect.top) / rect.height) * 100;
-      x = Math.max(0, Math.min(100, x));
-      y = Math.max(0, Math.min(100, y));
-      card.style.left = x + "%";
-      card.style.top = y + "%";
-    }
-
-    function onUp(ev) {
-      card.classList.remove("dragging");
-      card.removeEventListener("pointermove", onMove);
-      card.removeEventListener("pointerup", onUp);
-      const rect = board.getBoundingClientRect();
-      const inside =
-        ev.clientX >= rect.left &&
-        ev.clientX <= rect.right &&
-        ev.clientY >= rect.top &&
-        ev.clientY <= rect.bottom;
-      if (!inside) {
-        delete state.placements[movie.id];
-        persist();
-        renderCards();
-        renderPool();
-        return;
+  function computeDropTarget(clientX, clientY) {
+    const rows = getAllTierRows();
+    let row = null;
+    for (const r of rows) {
+      const rect = r.getBoundingClientRect();
+      if (clientY >= rect.top && clientY <= rect.bottom) {
+        row = r;
+        break;
       }
-      let x = ((ev.clientX - rect.left) / rect.width) * 100;
-      let y = ((ev.clientY - rect.top) / rect.height) * 100;
-      x = Math.max(0, Math.min(100, x));
-      y = Math.max(0, Math.min(100, y));
-      state.placements[movie.id] = { x, y };
-      persist();
     }
-
-    card.addEventListener("pointermove", onMove);
-    card.addEventListener("pointerup", onUp);
+    if (!row) return null;
+    const tierId = row.dataset.tier;
+    const cardsContainer = row.querySelector(".tier-cards");
+    const cards = Array.from(cardsContainer.querySelectorAll(".movie-card"));
+    let index = cards.length;
+    for (let i = 0; i < cards.length; i++) {
+      const rect = cards[i].getBoundingClientRect();
+      const mid = rect.left + rect.width / 2;
+      if (clientX < mid) {
+        index = i;
+        break;
+      }
+    }
+    return { tierId, index };
   }
 
-  // ---------- Drag: pool chip -> place on board ----------
-  function startChipDrag(e, movie, chip) {
+  function clearDragOverStyles() {
+    getAllTierRows().forEach((r) => r.classList.remove("drag-over"));
+  }
+
+  function startDrag(e, movie, sourceCardEl) {
     e.preventDefault();
+    const origin = sourceCardEl || e.currentTarget;
+    origin.setPointerCapture(e.pointerId);
+
+    // Hide the original element (pool chip or placed card) while dragging so
+    // it doesn't interfere with drop-target detection, and show a floating
+    // clone that follows the pointer.
+    const originalDisplay = origin.style.display;
+    origin.style.display = "none";
+
     const ghost = document.createElement("div");
-    ghost.className = "movie-card";
+    ghost.className = "movie-card drag-ghost";
     ghost.dataset.era = movie.era || "";
-    ghost.style.position = "fixed";
-    ghost.style.zIndex = "999";
-    ghost.style.pointerEvents = "none";
+    ghost.textContent = movie.title;
     ghost.style.left = e.clientX + "px";
     ghost.style.top = e.clientY + "px";
-    ghost.textContent = movie.title;
     document.body.appendChild(ghost);
-    chip.classList.add("dragging-source");
-    chip.setPointerCapture(e.pointerId);
 
     function onMove(ev) {
       ghost.style.left = ev.clientX + "px";
       ghost.style.top = ev.clientY + "px";
+      clearDragOverStyles();
+      const target = computeDropTarget(ev.clientX, ev.clientY);
+      if (target) {
+        const row = tierBoard.querySelector(`.tier-row[data-tier="${cssEscape(target.tierId)}"]`);
+        if (row) row.classList.add("drag-over");
+      }
     }
 
     function onUp(ev) {
-      chip.classList.remove("dragging-source");
-      chip.removeEventListener("pointermove", onMove);
-      chip.removeEventListener("pointerup", onUp);
+      origin.removeEventListener("pointermove", onMove);
+      origin.removeEventListener("pointerup", onUp);
       ghost.remove();
+      clearDragOverStyles();
+      origin.style.display = originalDisplay;
 
-      const rect = board.getBoundingClientRect();
-      const inside =
-        ev.clientX >= rect.left &&
-        ev.clientX <= rect.right &&
-        ev.clientY >= rect.top &&
-        ev.clientY <= rect.bottom;
-      if (!inside) return;
+      const target = computeDropTarget(ev.clientX, ev.clientY);
+      removeFromTiers(movie.id);
 
-      let x = ((ev.clientX - rect.left) / rect.width) * 100;
-      let y = ((ev.clientY - rect.top) / rect.height) * 100;
-      x = Math.max(0, Math.min(100, x));
-      y = Math.max(0, Math.min(100, y));
-      state.placements[movie.id] = { x, y };
+      if (target) {
+        state.tierMovies[target.tierId].splice(target.index, 0, movie.id);
+      }
+      // If there's no target, the movie ends up back in the pool (already
+      // removed from all tiers above).
+
       persist();
-      renderCards();
+      renderBoard();
       renderPool();
     }
 
-    chip.addEventListener("pointermove", onMove);
-    chip.addEventListener("pointerup", onUp);
+    origin.addEventListener("pointermove", onMove);
+    origin.addEventListener("pointerup", onUp);
+  }
+
+  function cssEscape(str) {
+    return String(str).replace(/["\\]/g, "\\$&");
   }
 
   // ---------- Add movie ----------
@@ -262,9 +293,11 @@
   // ---------- Reset ----------
   resetBtn.addEventListener("click", () => {
     if (!confirm("Clear all movie placements from the board? Custom movies you added will stay in the list.")) return;
-    state.placements = {};
+    state.tiers.forEach((t) => {
+      state.tierMovies[t.id] = [];
+    });
     persist();
-    renderCards();
+    renderBoard();
     renderPool();
     setStatus("Board cleared.");
   });
@@ -285,5 +318,5 @@
   });
 
   renderPool();
-  renderCards();
+  renderBoard();
 })();
