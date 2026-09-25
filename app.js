@@ -2,14 +2,19 @@
   "use strict";
 
   const STORAGE_KEY = "marvel-ranker-state-v3";
+  const TAP_MOVE_THRESHOLD = 8; // px — pointer movement below this counts as a tap, not a drag
 
   const tierBoard = document.getElementById("tier-board");
   const progressSummary = document.getElementById("progress-summary");
   const moviePool = document.getElementById("movie-pool");
+  const poolPanel = document.getElementById("pool-panel");
   const searchInput = document.getElementById("search-input");
   const resetBtn = document.getElementById("reset-btn");
   const exportBtn = document.getElementById("export-btn");
   const statusText = document.getElementById("status-text");
+  const selectionBar = document.getElementById("selection-bar");
+  const selectionText = document.getElementById("selection-text");
+  const selectionCancelBtn = document.getElementById("selection-cancel");
 
   const DEFAULT_TIERS = [
     { id: "top", label: "Top Quartile" },
@@ -53,8 +58,22 @@
     state.tierMovies[tierId] = state.tierMovies[tierId].filter((id) => movieById(id));
   });
 
+  // Tap-to-place selection. This is a fully separate interaction path from
+  // drag-and-drop: pick a movie with a tap, then tap a destination. It's the
+  // primary way to place movies on a touchscreen, where a page taller than
+  // the viewport makes a press-and-drag across the fold impractical (there's
+  // no auto-scroll). Mouse users can still drag as before.
+  let selectedId = null;
+
   function movieById(id) {
     return MARVEL_MOVIES.find((m) => m.id === id);
+  }
+
+  function findTierOf(id) {
+    for (const tier of state.tiers) {
+      if (state.tierMovies[tier.id].includes(id)) return tier.id;
+    }
+    return null;
   }
 
   function placedIds() {
@@ -89,6 +108,63 @@
     return div.innerHTML;
   }
 
+  // ---------- Tap-to-place selection ----------
+  function toggleSelect(movieId) {
+    selectedId = selectedId === movieId ? null : movieId;
+    renderPool();
+    renderBoard();
+    updateSelectionBar();
+  }
+
+  function clearSelection() {
+    if (!selectedId) return;
+    selectedId = null;
+    renderPool();
+    renderBoard();
+    updateSelectionBar();
+  }
+
+  function updateSelectionBar() {
+    if (!selectedId) {
+      selectionBar.hidden = true;
+      return;
+    }
+    const movie = movieById(selectedId);
+    selectionBar.hidden = false;
+    selectionText.textContent = movie ? `Placing "${movie.title}" — tap a quartile (or the pool to send it back)` : "";
+  }
+
+  function attemptPlace(movieId, targetTierId) {
+    const originTier = findTierOf(movieId);
+    if (originTier === targetTierId) {
+      clearSelection();
+      return;
+    }
+    if (state.tierMovies[targetTierId].length >= CAPACITY_BY_ID[targetTierId]) {
+      const tier = state.tiers.find((t) => t.id === targetTierId);
+      setStatus(`${tier.label} is full (${CAPACITY_BY_ID[targetTierId]}/${CAPACITY_BY_ID[targetTierId]}) — remove one first.`);
+      return; // keep the selection active so the user can try another tier
+    }
+    removeFromTiers(movieId);
+    state.tierMovies[targetTierId].push(movieId);
+    selectedId = null;
+    persist();
+    renderPool();
+    renderBoard();
+    updateSelectionBar();
+  }
+
+  function sendSelectedToPool() {
+    if (!selectedId) return;
+    const wasPlaced = findTierOf(selectedId) !== null;
+    removeFromTiers(selectedId);
+    selectedId = null;
+    if (wasPlaced) persist();
+    renderPool();
+    renderBoard();
+    updateSelectionBar();
+  }
+
   // ---------- Rendering ----------
   function renderPool() {
     const query = searchInput.value.trim().toLowerCase();
@@ -117,10 +193,11 @@
       }
       const chip = document.createElement("div");
       chip.className = "pool-chip";
+      if (movie.id === selectedId) chip.classList.add("selected");
       chip.dataset.id = movie.id;
       chip.dataset.phase = String(movie.phase);
       chip.innerHTML = `<span class="title">${escapeHtml(movie.title)}</span><span class="yr">${movie.year || ""}</span>`;
-      chip.addEventListener("pointerdown", (e) => startDrag(e, movie, null));
+      chip.addEventListener("pointerdown", (e) => startDrag(e, movie, chip));
       moviePool.appendChild(chip);
     });
   }
@@ -139,8 +216,18 @@
       const capacity = CAPACITY_BY_ID[tier.id];
       const row = document.createElement("div");
       row.className = "tier-row";
+      if (selectedId) row.classList.add("placeable");
       row.dataset.tier = tier.id;
       row.dataset.tierIndex = String(i);
+      row.addEventListener("click", (e) => {
+        if (!selectedId) return;
+        // A tap on a card (including its remove-x) is handled by the card's
+        // own pointer logic; don't also let the bubbled click re-trigger
+        // placement here (that would immediately re-place/clear whatever was
+        // just selected by that same tap).
+        if (e.target.closest(".movie-card")) return;
+        attemptPlace(selectedId, tier.id);
+      });
 
       const labelWrap = document.createElement("div");
       labelWrap.className = "tier-label-wrap";
@@ -190,6 +277,7 @@
   function buildCard(movie) {
     const card = document.createElement("div");
     card.className = "movie-card";
+    if (movie.id === selectedId) card.classList.add("selected");
     card.dataset.id = movie.id;
     card.dataset.phase = String(movie.phase);
     card.innerHTML = `<span class="title">${escapeHtml(movie.title)}${movie.year ? ` (${movie.year})` : ""}</span><span class="remove-x" title="Send back to pool">✕</span>`;
@@ -197,11 +285,14 @@
       if (e.target.classList.contains("remove-x")) return;
       startDrag(e, movie, card);
     });
-    card.querySelector(".remove-x").addEventListener("click", () => {
+    card.querySelector(".remove-x").addEventListener("click", (e) => {
+      e.stopPropagation();
       removeFromTiers(movie.id);
+      if (selectedId === movie.id) selectedId = null;
       persist();
       renderBoard();
       renderPool();
+      updateSelectionBar();
     });
     return card;
   }
@@ -211,12 +302,12 @@
     return Array.from(tierBoard.querySelectorAll(".tier-row"));
   }
 
-  function computeDropTarget(clientX, clientY) {
+  function computeDropTarget(clientX, clientY, excludeEl) {
     const rows = getAllTierRows();
     let row = null;
     for (const r of rows) {
       const rect = r.getBoundingClientRect();
-      if (clientY >= rect.top && clientY <= rect.bottom) {
+      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
         row = r;
         break;
       }
@@ -224,7 +315,7 @@
     if (!row) return null;
     const tierId = row.dataset.tier;
     const cardsContainer = row.querySelector(".tier-cards");
-    const cards = Array.from(cardsContainer.querySelectorAll(".movie-card"));
+    const cards = Array.from(cardsContainer.querySelectorAll(".movie-card")).filter((c) => c !== excludeEl);
     let index = cards.length;
     for (let i = 0; i < cards.length; i++) {
       const rect = cards[i].getBoundingClientRect();
@@ -241,34 +332,42 @@
     getAllTierRows().forEach((r) => r.classList.remove("drag-over", "drag-over-full"));
   }
 
-  function startDrag(e, movie, sourceCardEl) {
+  function startDrag(e, movie, origin) {
     e.preventDefault();
-    const origin = sourceCardEl || e.currentTarget;
     origin.setPointerCapture(e.pointerId);
 
-    // Hide the original element (pool chip or placed card) while dragging so
-    // it doesn't interfere with drop-target detection, and show a floating
-    // clone that follows the pointer.
-    const originalDisplay = origin.style.display;
-    origin.style.display = "none";
-
-    const ghost = document.createElement("div");
-    ghost.className = "movie-card drag-ghost";
-    ghost.dataset.phase = String(movie.phase);
-    ghost.textContent = movie.title;
-    ghost.style.left = e.clientX + "px";
-    ghost.style.top = e.clientY + "px";
-    document.body.appendChild(ghost);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragging = false;
+    let ghost = null;
 
     function tierIsFull(tierId) {
       return state.tierMovies[tierId].length >= CAPACITY_BY_ID[tierId];
     }
 
+    function beginDragVisuals() {
+      dragging = true;
+      origin.style.visibility = "hidden";
+      ghost = document.createElement("div");
+      ghost.className = "movie-card drag-ghost";
+      ghost.dataset.phase = String(movie.phase);
+      ghost.textContent = movie.title;
+      ghost.style.left = e.clientX + "px";
+      ghost.style.top = e.clientY + "px";
+      document.body.appendChild(ghost);
+    }
+
     function onMove(ev) {
+      if (!dragging) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (Math.hypot(dx, dy) < TAP_MOVE_THRESHOLD) return;
+        beginDragVisuals();
+      }
       ghost.style.left = ev.clientX + "px";
       ghost.style.top = ev.clientY + "px";
       clearDragOverStyles();
-      const target = computeDropTarget(ev.clientX, ev.clientY);
+      const target = computeDropTarget(ev.clientX, ev.clientY, origin);
       if (target) {
         const row = tierBoard.querySelector(`.tier-row[data-tier="${cssEscape(target.tierId)}"]`);
         if (row) row.classList.add(tierIsFull(target.tierId) ? "drag-over-full" : "drag-over");
@@ -278,11 +377,18 @@
     function onUp(ev) {
       origin.removeEventListener("pointermove", onMove);
       origin.removeEventListener("pointerup", onUp);
+
+      if (!dragging) {
+        // No meaningful movement: treat this as a tap/select instead of a drop.
+        toggleSelect(movie.id);
+        return;
+      }
+
       ghost.remove();
       clearDragOverStyles();
-      origin.style.display = originalDisplay;
+      origin.style.visibility = "";
 
-      const target = computeDropTarget(ev.clientX, ev.clientY);
+      const target = computeDropTarget(ev.clientX, ev.clientY, origin);
 
       if (target && tierIsFull(target.tierId)) {
         const tier = state.tiers.find((t) => t.id === target.tierId);
@@ -312,6 +418,21 @@
     return String(str).replace(/["\\]/g, "\\$&");
   }
 
+  // ---------- Selection bar ----------
+  selectionCancelBtn.addEventListener("click", clearSelection);
+
+  // Tapping empty pool space places a selected tier-card back in the pool
+  // (or just cancels the selection if it was already unplaced).
+  poolPanel.addEventListener("click", (e) => {
+    if (!selectedId) return;
+    if (e.target.closest(".pool-chip") || e.target.closest("input") || e.target.closest("button")) return;
+    sendSelectedToPool();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") clearSelection();
+  });
+
   // ---------- Search ----------
   searchInput.addEventListener("input", renderPool);
 
@@ -321,9 +442,11 @@
     state.tiers.forEach((t) => {
       state.tierMovies[t.id] = [];
     });
+    selectedId = null;
     persist();
     renderBoard();
     renderPool();
+    updateSelectionBar();
     setStatus("Board cleared.");
   });
 

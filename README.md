@@ -16,10 +16,14 @@ real stack rank: you can't just pile everything into "Top."
   quartile (shown live as "x / capacity" on each row). A quartile that's
   full rejects new drops until you remove something — that's the point of
   a stack rank.
-- Drag movies from the side pool into a quartile; drag placed movies
-  between quartiles or to reorder within one; drag a card out of the board
-  (or click the ✕) to send it back to the pool.
-- Search box to filter the movie pool.
+- Two ways to place a movie: **drag** it onto a quartile (desktop-friendly),
+  or **tap** it then tap a quartile (mobile-friendly — no drag-across-the-fold
+  needed on a page taller than the screen). Tap a placed movie again to
+  reselect it and move it, or tap the pool to send it back. A ✕ on each
+  card also sends it straight back to the pool.
+- Search box to filter the movie pool, grouped by MCU phase.
+- Mobile-friendly layout: single-column board, larger tap targets, and a
+  sticky "Placing…" bar with a Cancel button while a movie is selected.
 - Your ranking is saved automatically in the browser's local storage — it's
   all client-side, nothing is sent to a server.
 - Export the finished ranking as a PNG.

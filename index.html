@@ -2,18 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Marvel Movie Ranker</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="app-header">
     <h1>Marvel Movie Ranker</h1>
-    <p class="subtitle">Stack rank every MCU movie into a forced quartile split — each quartile holds an equal share of the list. Click a quartile name to rename it.</p>
+    <p class="subtitle">Stack rank every MCU movie into a forced quartile split. Drag a movie onto a quartile, or tap it then tap a quartile. Tap a quartile name to rename it.</p>
   </header>
 
   <main class="layout">
-    <aside class="pool-panel">
+    <aside class="pool-panel" id="pool-panel">
       <div class="pool-header">
         <input id="search-input" type="text" placeholder="Search movies..." autocomplete="off">
       </div>
@@ -33,6 +33,11 @@
   <footer class="app-footer">
     <span id="status-text"></span>
   </footer>
+
+  <div id="selection-bar" class="selection-bar" hidden>
+    <span id="selection-text"></span>
+    <button id="selection-cancel" type="button">Cancel</button>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="movies.js"></script>
