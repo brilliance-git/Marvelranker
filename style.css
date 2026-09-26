@@ -408,6 +408,14 @@ html, body {
   border-color: var(--accent-gold);
 }
 
+.rank-row.drop-placeholder {
+  background: rgba(232, 177, 58, 0.12);
+  border: 2px dashed var(--accent-gold);
+  border-left: 2px dashed var(--accent-gold);
+  box-shadow: none;
+  pointer-events: none;
+}
+
 .app-footer {
   padding: 8px 24px 20px;
   color: var(--text-dim);

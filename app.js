@@ -314,7 +314,7 @@
     return Array.from(tierBoard.querySelectorAll(".tier-list"));
   }
 
-  function computeDropTarget(clientX, clientY, excludeEl) {
+  function computeDropTarget(clientX, clientY, excludeEls) {
     const lists = getAllTierLists();
     let list = null;
     for (const l of lists) {
@@ -326,7 +326,7 @@
     }
     if (!list) return null;
     const tierId = list.dataset.tier;
-    const rows = Array.from(list.querySelectorAll(".rank-row")).filter((r) => r !== excludeEl);
+    const rows = Array.from(list.querySelectorAll(".rank-row")).filter((r) => !excludeEls.includes(r));
     let index = rows.length;
     for (let i = 0; i < rows.length; i++) {
       const rect = rows[i].getBoundingClientRect();
@@ -354,6 +354,8 @@
     const startY = e.clientY;
     let dragging = false;
     let ghost = null;
+    let placeholder = null;
+    let lastTargetKey = null;
     let lastX = e.clientX;
     let lastY = e.clientY;
     let autoScrollFrame = null;
@@ -374,6 +376,8 @@
       ghost.style.left = atX + "px";
       ghost.style.top = atY + "px";
       document.body.appendChild(ghost);
+      placeholder = document.createElement("div");
+      placeholder.className = "rank-row drop-placeholder";
       autoScrollFrame = requestAnimationFrame(autoScrollTick);
     }
 
@@ -397,11 +401,53 @@
 
     function updateDragHighlight(x, y) {
       clearDragOverStyles();
-      const target = computeDropTarget(x, y, origin);
+      const target = computeDropTarget(x, y, [origin, placeholder]);
       if (target) {
         const column = tierBoard.querySelector(`.tier-column[data-tier="${cssEscape(target.tierId)}"]`);
         if (column) column.classList.add(tierIsFull(target.tierId) ? "drag-over-full" : "drag-over");
       }
+      movePlaceholder(target);
+    }
+
+    // Live-reorder preview: as the pointer crosses into a new slot, move the
+    // placeholder there and let the other rows in that list slide out of the
+    // way (a FLIP animation — measure before, move, measure after, animate
+    // the delta) instead of only snapping into place once you let go.
+    function movePlaceholder(target) {
+      const key = target ? `${target.tierId}:${target.index}` : null;
+      if (key === lastTargetKey) return;
+      lastTargetKey = key;
+
+      if (!target) {
+        if (placeholder.parentNode) placeholder.remove();
+        return;
+      }
+
+      const list = tierBoard.querySelector(`.tier-list[data-tier="${cssEscape(target.tierId)}"]`);
+      if (!list) return;
+
+      const siblings = Array.from(list.children).filter((r) => r !== placeholder && r !== origin);
+      const firstRects = new Map(siblings.map((r) => [r, r.getBoundingClientRect()]));
+
+      if (target.index >= siblings.length) {
+        list.appendChild(placeholder);
+      } else {
+        list.insertBefore(placeholder, siblings[target.index]);
+      }
+
+      siblings.forEach((row) => {
+        const first = firstRects.get(row);
+        const last = row.getBoundingClientRect();
+        const dx = first.left - last.left;
+        const dy = first.top - last.top;
+        if (!dx && !dy) return;
+        row.style.transition = "none";
+        row.style.transform = `translate(${dx}px, ${dy}px)`;
+        requestAnimationFrame(() => {
+          row.style.transition = "transform 150ms ease";
+          row.style.transform = "";
+        });
+      });
     }
 
     function onMove(ev) {
@@ -431,10 +477,11 @@
 
       cancelAnimationFrame(autoScrollFrame);
       ghost.remove();
+      if (placeholder.parentNode) placeholder.remove();
       clearDragOverStyles();
       origin.style.visibility = "";
 
-      const target = computeDropTarget(ev.clientX, ev.clientY, origin);
+      const target = computeDropTarget(ev.clientX, ev.clientY, [origin, placeholder]);
 
       if (target && tierIsFull(target.tierId) && findTierOf(movie.id) !== target.tierId) {
         const tier = state.tiers.find((t) => t.id === target.tierId);
@@ -464,6 +511,7 @@
       if (dragging) {
         cancelAnimationFrame(autoScrollFrame);
         if (ghost) ghost.remove();
+        if (placeholder && placeholder.parentNode) placeholder.remove();
         clearDragOverStyles();
         origin.style.visibility = "";
       }
