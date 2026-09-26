@@ -391,7 +391,12 @@
     function beginDragVisuals(atX, atY) {
       dragging = true;
       const width = origin.getBoundingClientRect().width;
+      // Take the original out of the flex flow entirely (not just invisible)
+      // so its list immediately closes up around where it was, instead of
+      // leaving a blank hole there for the whole drag. It stays in the DOM,
+      // just out of flow, so pointer capture on it is unaffected.
       origin.style.visibility = "hidden";
+      origin.style.position = "absolute";
       ghost = document.createElement("div");
       ghost.className = "rank-row drag-ghost";
       ghost.dataset.phase = String(movie.phase);
@@ -504,6 +509,7 @@
       if (placeholder.parentNode) placeholder.remove();
       clearDragOverStyles();
       origin.style.visibility = "";
+      origin.style.position = "";
 
       const target = computeDropTarget(ev.clientX, ev.clientY, [origin, placeholder]);
 
@@ -538,6 +544,7 @@
         if (placeholder && placeholder.parentNode) placeholder.remove();
         clearDragOverStyles();
         origin.style.visibility = "";
+        origin.style.position = "";
       }
     }
 
