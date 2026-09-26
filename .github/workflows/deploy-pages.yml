@@ -2,7 +2,11 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, claude/marvel-movie-ranking-zki0hg]
+    # This repo's actual default branch is claude/marvel-movie-ranking-zki0hg
+    # (not main) — GitHub Pages' auto-created "github-pages" environment
+    # only allows deploys from the default branch, so a push to any other
+    # branch, including main, is rejected before the job even starts.
+    branches: [claude/marvel-movie-ranking-zki0hg]
   workflow_dispatch: {}
 
 permissions:
