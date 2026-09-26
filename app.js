@@ -362,15 +362,17 @@
       return state.tierMovies[tierId].length >= CAPACITY_BY_ID[tierId];
     }
 
-    function beginDragVisuals() {
+    function beginDragVisuals(atX, atY) {
       dragging = true;
+      const width = origin.getBoundingClientRect().width;
       origin.style.visibility = "hidden";
       ghost = document.createElement("div");
       ghost.className = "rank-row drag-ghost";
       ghost.dataset.phase = String(movie.phase);
       ghost.innerHTML = `<span class="title">${escapeHtml(movie.title)}</span>`;
-      ghost.style.left = e.clientX + "px";
-      ghost.style.top = e.clientY + "px";
+      ghost.style.width = width + "px";
+      ghost.style.left = atX + "px";
+      ghost.style.top = atY + "px";
       document.body.appendChild(ghost);
       autoScrollFrame = requestAnimationFrame(autoScrollTick);
     }
@@ -409,7 +411,7 @@
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (Math.hypot(dx, dy) < TAP_MOVE_THRESHOLD) return;
-        beginDragVisuals();
+        beginDragVisuals(ev.clientX, ev.clientY);
       }
       ghost.style.left = ev.clientX + "px";
       ghost.style.top = ev.clientY + "px";
