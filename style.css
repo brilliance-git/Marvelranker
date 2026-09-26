@@ -398,9 +398,14 @@ html, body {
   position: fixed;
   z-index: 999;
   pointer-events: none;
-  opacity: 0.9;
+  opacity: 0.97;
   cursor: grabbing;
   width: 220px;
+  /* Offset up and centered on the pointer so a finger dragging on a
+     touchscreen doesn't sit directly on top of (and hide) the ghost. */
+  transform: translate(-50%, -140%);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  border-color: var(--accent-gold);
 }
 
 .app-footer {
