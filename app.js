@@ -226,6 +226,15 @@
   }
 
   function renderBoard() {
+    // FLIP animation: whenever the board re-renders (a drag-drop lands, a
+    // tap+quartile-button placement, a reassignment, a removal), any row
+    // that's still on the board but changed position slides there instead
+    // of just snapping into its new spot.
+    const firstRects = new Map();
+    tierBoard.querySelectorAll(".rank-row").forEach((el) => {
+      if (el.dataset.id) firstRects.set(el.dataset.id, el.getBoundingClientRect());
+    });
+
     tierBoard.innerHTML = "";
     state.tiers.forEach((tier, i) => {
       const capacity = CAPACITY_BY_ID[tier.id];
@@ -284,6 +293,21 @@
       tierBoard.appendChild(column);
     });
     renderProgress();
+
+    tierBoard.querySelectorAll(".rank-row").forEach((el) => {
+      const first = firstRects.get(el.dataset.id);
+      if (!first) return; // newly placed row — nothing to animate from
+      const last = el.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+      if (!dx && !dy) return;
+      el.style.transition = "none";
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      requestAnimationFrame(() => {
+        el.style.transition = "transform 200ms ease";
+        el.style.transform = "";
+      });
+    });
   }
 
   function buildRow(movie, rank) {
